@@ -36,7 +36,7 @@ Dự án tập trung vào việc khai thác các tính năng kết nối không 
 │   ├── part2/               # BLE Central (Client - Auto Connect)
 │   │   └── BLE_Central.ino
 │   └── part3/               # Client - Server System (Giao tiếp 2 ESP32)
-│       ├── Server.ino       # Code cho ESP32 A
-│       └── Client.ino       # Code cho ESP32 B
+│       ├── A      # Code cho ESP32 A
+│       └── B       # Code cho ESP32 B
 │
 └── README.md                # File tài liệu tổng hợp này
