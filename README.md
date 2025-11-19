@@ -22,21 +22,29 @@ Dự án tập trung vào việc khai thác các tính năng kết nối không 
 -   Điện thoại thông minh (Android/iOS) cài đặt ứng dụng **nRF Connect** hoặc **LightBlue**.
 
 ---
-
 ## Cấu trúc thư mục
 
+Dưới đây là tổ chức các file mã nguồn trong repository:
+
 ```text
-├── Exercise1/               # Bài tập 1: Wi-Fi
-│   └── part1/               # Station Mode (TCP/UDP Client)
-│       └── part1.ino
+.
+├── Exercise1/               # Bài tập 1: Lập trình Wi-Fi
+│   ├── part1/               # Chế độ Station (STA)
+│   │   └── part1.ino        # Code kết nối Wi-Fi, TCP & UDP Client
+│   └── part2/               # [Các bài tập mở rộng Wi-Fi nếu có]
+│       ├── part2.ino
+│       └── README.md
 │
-├── Exercise2/               # Bài tập 2: BLE
+├── Exercise2/               # Bài tập 2: Lập trình BLE (Bluetooth Low Energy)
 │   ├── part1/               # BLE Peripheral (Server)
-│   │   └── BLE_Peripheral.ino
-│   ├── part2/               # BLE Central (Client - Auto Connect)
-│   │   └── BLE_Central.ino
-│   └── part3/               # Client - Server System (Giao tiếp 2 ESP32)
-│       ├── A      # Code cho ESP32 A
-│       └── B       # Code cho ESP32 B
+│   │   └── part1.ino        # Code phát sóng BLE & gửi Notify nhiệt độ
+│   ├── part2/               # BLE Central (Client)
+│   │   └── part2.ino        # Code quét & tự động kết nối Server
+│   ├── part3/               # Hệ thống giao tiếp Client - Server
+│   │   ├── A/               # Code cho Board A (Server)
+│   │   │   └── A.ino
+│   │   └── B/               # Code cho Board B (Client)
+│   │       └── B.ino
+│   └── README.md            # Tài liệu hướng dẫn riêng cho Bài tập 2
 │
-└── README.md                # File tài liệu tổng hợp này
+└── README.md                # Tài liệu tổng hợp toàn bộ dự án
