@@ -32,7 +32,35 @@ Bài tập này hướng dẫn cấu hình ESP32 hoạt động ở chế độ 
 6.  Mở **Serial Monitor** (Ctrl + Shift + M), chỉnh tốc độ baud thành **115200** để xem kết quả.
 
 ---
+## Giải thích mã nguồn
+Giải thích mã nguồn
+1. Thư viện sử dụng
+WiFi.h: Thư viện chính để quản lý kết nối Wi-Fi trên ESP32.
 
+WiFiClient.h: Cung cấp lớp đối tượng để tạo kết nối TCP (tương tự như trình duyệt web).
+
+WiFiUdp.h: Cung cấp lớp đối tượng để gửi/nhận gói tin UDP (nhanh nhưng không đảm bảo thứ tự).
+
+2. Quá trình kết nối (trong setup)
+WiFi.begin(ssid, password): Bắt đầu quá trình kết nối vào Access Point.
+
+WiFi.status(): Kiểm tra trạng thái. Vòng lặp while sẽ giữ chương trình dừng lại ở đây cho đến khi trạng thái chuyển sang WL_CONNECTED.
+
+WiFi.localIP(): Trả về địa chỉ IP mà Router cấp cho ESP32 qua DHCP.
+
+3. Hàm testTCP()
+tcpClient.connect(host, port): Mở một kết nối TCP đến server (Handshake 3 bước).
+
+tcpClient.println(...): Gửi dữ liệu text (HTTP Header) đi.
+
+tcpClient.read(): Đọc từng byte dữ liệu trả về từ Server.
+
+4. Hàm testUDP()
+udp.beginPacket(ip, port): Chuẩn bị một gói tin UDP.
+
+udp.endPacket(): Thực sự gửi gói tin đi.
+
+udp.parsePacket(): Kiểm tra xem có gói tin nào được gửi ngược lại không.
 ## Mã nguồn (Source Code)
 *File: `part1.ino`*
 
