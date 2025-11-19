@@ -76,6 +76,4 @@ Code này được lập trình để tìm thiết bị tên `ESP32_BLE`. Nếu 
 ## Yêu cầu phần cứng
 * **Phần 1 & 2:** 01 ESP32 + Điện thoại thông minh.
 * **Phần 3:** 02 ESP32 (Một làm Server, một làm Client).
-## Yêu cầu phần cứng
-* **Phần 1 & 2:** 01 ESP32 + Điện thoại thông minh.
-* **Phần 3:** 02 ESP32 (Một làm Server, một làm Client).
+
