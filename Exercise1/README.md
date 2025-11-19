@@ -35,123 +35,21 @@ Bài tập này hướng dẫn cấu hình ESP32 hoạt động ở chế độ 
 ## Giải thích mã nguồn
 Giải thích mã nguồn
 1. Thư viện sử dụng
-WiFi.h: Thư viện chính để quản lý kết nối Wi-Fi trên ESP32.
-
-WiFiClient.h: Cung cấp lớp đối tượng để tạo kết nối TCP (tương tự như trình duyệt web).
-
-WiFiUdp.h: Cung cấp lớp đối tượng để gửi/nhận gói tin UDP (nhanh nhưng không đảm bảo thứ tự).
-
+- **WiFi.h:** Thư viện chính để quản lý kết nối Wi-Fi trên ESP32.
+- **WiFiClient.h:** Cung cấp lớp đối tượng để tạo kết nối TCP (tương tự như trình duyệt web).
+- **WiFiUdp.h:** Cung cấp lớp đối tượng để gửi/nhận gói tin UDP (nhanh nhưng không đảm bảo thứ tự).
 2. Quá trình kết nối (trong setup)
-WiFi.begin(ssid, password): Bắt đầu quá trình kết nối vào Access Point.
-
-WiFi.status(): Kiểm tra trạng thái. Vòng lặp while sẽ giữ chương trình dừng lại ở đây cho đến khi trạng thái chuyển sang WL_CONNECTED.
-
-WiFi.localIP(): Trả về địa chỉ IP mà Router cấp cho ESP32 qua DHCP.
-
+- **WiFi.begin(ssid, password):** Bắt đầu quá trình kết nối vào Access Point.
+- **WiFi.status():** Kiểm tra trạng thái. Vòng lặp while sẽ giữ chương trình dừng lại ở đây cho đến khi trạng thái chuyển sang WL_CONNECTED.
+- **WiFi.localIP():** Trả về địa chỉ IP mà Router cấp cho ESP32 qua DHCP.
 3. Hàm testTCP()
-tcpClient.connect(host, port): Mở một kết nối TCP đến server (Handshake 3 bước).
-
-tcpClient.println(...): Gửi dữ liệu text (HTTP Header) đi.
-
-tcpClient.read(): Đọc từng byte dữ liệu trả về từ Server.
-
+- **tcpClient.connect(host, port):** Mở một kết nối TCP đến server (Handshake 3 bước).
+- **tcpClient.println(...):** Gửi dữ liệu text (HTTP Header) đi.
+- **tcpClient.read():** Đọc từng byte dữ liệu trả về từ Server.
 4. Hàm testUDP()
-udp.beginPacket(ip, port): Chuẩn bị một gói tin UDP.
-
-udp.endPacket(): Thực sự gửi gói tin đi.
-
-udp.parsePacket(): Kiểm tra xem có gói tin nào được gửi ngược lại không.
+- **udp.beginPacket(ip, port):** Chuẩn bị một gói tin UDP.
+- **udp.endPacket():** Thực sự gửi gói tin đi.
+- **udp.parsePacket():** Kiểm tra xem có gói tin nào được gửi ngược lại không.
 ## Mã nguồn (Source Code)
 *File: `part1.ino`*
-
-```cpp
-#include <WiFi.h>
-#include <WiFiClient.h>
-#include <WiFiUdp.h>
-
-// === CẤU HÌNH WI-FI (SỬA TẠI ĐÂY) ===
-const char* ssid = "TEN_WIFI_CUA_BAN";
-const char* password = "MAT_KHAU_WIFI";
-
-// Cấu hình Server để test
-const char* tcpServer = "httpbin.org";
-const int   tcpPort   = 80;
-const char* udpServer = "8.8.8.8"; // Google DNS
-const int   udpPort   = 53;
-
-WiFiClient tcpClient;
-WiFiUDP    udp;
-
-void setup() {
-  Serial.begin(115200);
-  delay(1000);
-
-  // 1. KẾT NỐI WI-FI
-  Serial.print("Dang ket noi WiFi: ");
-  Serial.println(ssid);
-  WiFi.begin(ssid, password);
-
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-
-  Serial.println("\nDA KET NOI WIFI!");
-  Serial.print("IP ESP32: ");
-  Serial.println(WiFi.localIP());
-
-  // 2. THỰC HIỆN TEST
-  testTCP();
-  testUDP();
-}
-
-void testTCP() {
-  Serial.println("\n--- GUI TCP DEN SERVER ---");
-  if (tcpClient.connect(tcpServer, tcpPort)) {
-    Serial.println("TCP ket noi thanh cong!");
-    // Gửi yêu cầu HTTP GET
-    tcpClient.println("GET /get HTTP/1.1");
-    tcpClient.println("Host: httpbin.org");
-    tcpClient.println("Connection: close");
-    tcpClient.println();
-
-    delay(2000); // Chờ phản hồi
-    Serial.println("Phan hoi TCP:");
-    while (tcpClient.available()) {
-      Serial.write(tcpClient.read());
-    }
-    tcpClient.stop();
-  } else {
-    Serial.println("TCP ket noi that bai!");
-  }
-}
-
-void testUDP() {
-  Serial.println("\n--- GUI UDP DEN SERVER ---");
-  udp.begin(udpPort);
-
-  IPAddress serverIP(8,8,8,8);
-  String message = "Hello UDP from ESP32!";
-  
-  udp.beginPacket(serverIP, udpPort);
-  udp.print(message);
-  udp.endPacket();
-  Serial.println("Da gui UDP: " + message);
-
-  delay(3000); // Chờ phản hồi
-  if (udp.parsePacket()) {
-    char buffer[255];
-    int len = udp.read(buffer, 255);
-    buffer[len] = '\0';
-    Serial.print("Phan hoi UDP: ");
-    Serial.println(buffer);
-  } else {
-    Serial.println("Khong nhan duoc phan hoi UDP");
-  }
-  udp.stop();
-}
-
-void loop() {
-  // Không làm gì trong loop
-  delay(10000);
-}
+*File: `part2.ino`*
