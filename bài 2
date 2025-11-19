@@ -1,0 +1,391 @@
+# Bài tập 2: ESP32 Bluetooth Low Energy (BLE)
+
+## Mục lục
+
+- [Bài tập 2.1: ESP32 BLE Peripheral (Server)](#bài-tập-21-esp32-ble-peripheral-server)
+- [Bài tập 2.2: ESP32 BLE Central (Client)](#bài-tập-22-esp32-ble-central-client)
+- [Bài tập 2.3: Hệ thống hoàn chỉnh (Client - Server)](#bài-tập-23-hệ-thống-hoàn-chỉnh-client---server)
+
+## Phần cứng & phần mềm chung
+- **Phần cứng:** - Bài 2.1 & 2.2: 1 board ESP32 + Smartphone (App: nRF Connect / LightBlue).
+  - Bài 2.3: 2 board ESP32 (Một làm Server, một làm Client).
+- **Phần mềm:** Arduino IDE với ESP32 core.
+
+---
+
+# Bài tập 2.1: ESP32 BLE Peripheral (Server)
+
+Trong bài này, ESP32 đóng vai trò là **Peripheral (Server)**. Nó phát sóng (advertise) để các thiết bị khác có thể tìm thấy.
+
+**Chức năng:**
+- [cite_start]Phát sóng với tên `ESP32_BLE_GroupX`[cite: 35].
+- [cite_start]Tạo Service UUID `4fafc201...` và 2 Characteristic (Read & Write)[cite: 22].
+- [cite_start]**Read:** Gửi dữ liệu nhiệt độ giả lập (Notify mỗi 3 giây)[cite: 44].
+- [cite_start]**Write:** Nhận lệnh '1' hoặc '0' để bật/tắt đèn LED trên mạch[cite: 32, 33].
+
+### Mã nguồn (BLE_Peripheral.ino)
+
+```cpp
+// Exercise2/part1/BLE_Peripheral.ino
+// ESP32 làm BLE Server (Peripheral)
+
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+
+// UUID tự tạo
+#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID_READ  "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define CHARACTERISTIC_UUID_WRITE "1d6e8f1a-5f0f-4c31-9f43-7b6189d8e1e2"
+
+BLEServer* pServer = NULL;
+BLECharacteristic* pCharacteristicRead = NULL;
+BLECharacteristic* pCharacteristicWrite = NULL;
+
+bool deviceConnected = false;
+uint8_t ledState = 0;
+float fakeTemperature = 25.0;
+#define LED_PIN 2
+
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+      Serial.println("Thiết bị đã kết nối!");
+      BLEDevice::startAdvertising();
+    };
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+      Serial.println("Thiết bị đã ngắt kết nối!");
+      BLEDevice::startAdvertising();
+    }
+};
+
+class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pCharacteristic) {
+      std::string value = pCharacteristic->getValue();
+      if (value.length() > 0) {
+        Serial.print("Nhận dữ liệu từ client: ");
+        for (int i = 0; i < value.length(); i++) Serial.print(value[i]);
+        Serial.println();
+        if (value[0] == '1') {
+          digitalWrite(LED_PIN, HIGH);
+          ledState = 1;
+          Serial.println("=> LED BẬT");
+        } else if (value[0] == '0') {
+          digitalWrite(LED_PIN, LOW);
+          ledState = 0;
+          Serial.println("=> LED TẮT");
+        }
+      }
+    }
+};
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+
+  Serial.println("Khởi động BLE Peripheral...");
+
+  BLEDevice::init("ESP32_BLE_GroupX");
+  pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
+
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+
+  pCharacteristicRead = pService->createCharacteristic(
+                          CHARACTERISTIC_UUID_READ,
+                          BLECharacteristic::PROPERTY_READ |
+                          BLECharacteristic::PROPERTY_NOTIFY
+                        );
+  pCharacteristicRead->addDescriptor(new BLE2902());
+  pCharacteristicRead->setValue("25.0");
+
+  pCharacteristicWrite = pService->createCharacteristic(
+                           CHARACTERISTIC_UUID_WRITE,
+                           BLECharacteristic::PROPERTY_WRITE
+                         );
+  pCharacteristicWrite->setCallbacks(new MyCharacteristicCallbacks());
+
+  pService->start();
+  
+  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  pAdvertising->addServiceUUID(SERVICE_UUID);
+  pAdvertising->setScanResponse(true);
+  pAdvertising->setMinPreferred(0x06);
+  pAdvertising->setMinPreferred(0x12);
+  BLEDevice::startAdvertising();
+  Serial.println("Đang quảng bá BLE, tên: ESP32_BLE_GroupX");
+}
+
+void loop() {
+  static unsigned long lastUpdate = 0;
+  if (millis() - lastUpdate > 3000) {
+    lastUpdate = millis();
+    fakeTemperature += (random(-10, 11) / 10.0);
+    if (fakeTemperature < 15) fakeTemperature = 15;
+    if (fakeTemperature > 40) fakeTemperature = 40;
+
+    String tempStr = String(fakeTemperature, 1);
+    pCharacteristicRead->setValue(tempStr.c_str());
+    pCharacteristicRead->notify();
+    Serial.print("Nhiệt độ hiện tại: ");
+    Serial.println(tempStr);
+  }
+  delay(100);
+}
+#include <BLEDevice.h>
+#include <BLEScan.h>
+#include <BLEAdvertisedDevice.h>
+
+static BLEUUID serviceUUID("180F");
+static BLEUUID charTempUUID("2A19");
+static BLEUUID charLedUUID("0000ff01-0000-1000-8000-00805f9b34fb");
+
+static BLEAdvertisedDevice* myDevice = nullptr;
+static BLERemoteCharacteristic* pTempChar = nullptr;
+static BLERemoteCharacteristic* pLedChar = nullptr;
+static bool doConnect = false;
+static bool connected = false;
+
+class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
+    void onResult(BLEAdvertisedDevice advertisedDevice) {
+      if (advertisedDevice.haveName() && advertisedDevice.getName() == "ESP32_BLE") {
+        Serial.println("[SCAN] TÌM THẤY ESP32_BLE!");
+        BLEDevice::getScan()->stop();
+        myDevice = new BLEAdvertisedDevice(advertisedDevice);
+        doConnect = true;
+      }
+    }
+};
+
+void notifyCallback(BLERemoteCharacteristic* pChar, uint8_t* data, size_t len, bool isNotify) {
+  if (len > 0) Serial.printf("[NOTIFY] Nhiệt độ: %d °C\n", data[0]);
+}
+
+bool connectToServer() {
+  BLEClient* pClient = BLEDevice::createClient();
+  if (!pClient->connect(myDevice)) return false;
+
+  BLERemoteService* pService = pClient->getService(serviceUUID);
+  if (!pService) { pClient->disconnect(); return false; }
+
+  pTempChar = pService->getCharacteristic(charTempUUID);
+  if (pTempChar && pTempChar->canNotify()) pTempChar->registerForNotify(notifyCallback);
+
+  pLedChar = pService->getCharacteristic(charLedUUID);
+
+  Serial.println("[BLE] KẾT NỐI THÀNH CÔNG!");
+  return true;
+}
+
+void setup() {
+  Serial.begin(115200);
+  while(!Serial);
+  delay(2000);
+  Serial.println("\n=== PART 2 - BLE CENTRAL  ===");
+  Serial.println("Đang quét ESP32_BLE...\n");
+
+  BLEDevice::init("");
+}
+
+void loop() {
+  if (!connected && !doConnect) {
+    BLEScan* pScan = BLEDevice::getScan();
+    pScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+    pScan->setActiveScan(true);
+    pScan->start(0);
+  }
+
+  if (doConnect) {
+    connectToServer();
+    doConnect = false;
+    connected = true;
+  }
+
+  if (connected && pLedChar && millis() % 10000 < 50) {
+    static bool state = false;
+    state = !state;
+    pLedChar->writeValue(state ? "1" : "0");
+    Serial.printf("→ Gửi lệnh: LED %s\n", state ? "BẬT" : "TẮT");
+  }
+  delay(100);
+}
+// PART 3 - PERIPHERAL (Server)
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLE2902.h>
+
+#define LED_PIN 2
+#define SERVICE_UUID        "180F"
+#define CHAR_TEMP_UUID      "2A19"
+#define CHAR_LED_UUID       "0000ff01-0000-1000-8000-00805f9b34fb"
+
+BLECharacteristic* pTempChar;
+bool deviceConnected = false;
+float temp = 25.0;
+
+class ServerCB : public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+      Serial.println("\n[PART 3] CENTRAL ĐÃ KẾT NỐI THÀNH CÔNG!");
+    }
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+      Serial.println("[PART 3] Central ngắt → quảng bá lại...");
+      delay(500);
+      pServer->startAdvertising();
+    }
+};
+
+class LedCB : public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic* pChar) override {
+      uint8_t* d = pChar->getData();
+      if (d) {
+        digitalWrite(LED_PIN, (d[0]=='1') ? HIGH : LOW);
+        Serial.printf("[PART 3] LED nhận lệnh: %c → %s\n", d[0], d[0]=='1'?"BẬT":"TẮT");
+      }
+    }
+};
+
+void setup() {
+  Serial.begin(115200);
+  while(!Serial); delay(1000);
+  Serial.println("\n=== PART 3 - PERIPHERAL (Server) ===");
+  pinMode(LED_PIN, OUTPUT);
+
+  BLEDevice::init("ESP32_SERVER");
+  BLEServer* pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new ServerCB());
+  BLEService* pService = pServer->createService(SERVICE_UUID);
+
+  pTempChar = pService->createCharacteristic(
+                CHAR_TEMP_UUID,
+                BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
+  pTempChar->addDescriptor(new BLE2902());
+  pTempChar->setValue("25");
+
+  pService->createCharacteristic(CHAR_LED_UUID,
+                BLECharacteristic::PROPERTY_WRITE)->setCallbacks(new LedCB());
+  pService->start();
+
+  BLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
+  pAdvertising->addServiceUUID(SERVICE_UUID);
+  pAdvertising->setScanResponse(true);
+  pAdvertising->setMinPreferred(0x06);
+  pAdvertising->setMinPreferred(0x12);
+  pAdvertising->start();
+
+  Serial.println("Đang phát với tên: ESP32_SERVER");
+  Serial.println("Service UUID 180F đã được đưa vào advertising packet!");
+}
+
+void loop() {
+  if (deviceConnected && millis() % 2000 < 100) {
+    temp += random(-20, 21) / 10.0;
+    temp = constrain(temp, 15, 45);
+    uint8_t v = (uint8_t)temp;
+    pTempChar->setValue(&v, 1);
+    pTempChar->notify();
+    Serial.printf("[PART 3] Notify nhiệt độ: %.1f °C\n", temp);
+  }
+  delay(100);
+}
+// PART 3 - BLE CENTRAL (Client)
+#include <BLEDevice.h>
+#include <BLEScan.h>
+#include <BLEAdvertisedDevice.h>
+
+static BLEUUID serviceUUID("180F");
+static BLEUUID tempUUID("2A19");
+static BLEUUID ledUUID("0000ff01-0000-1000-8000-00805f9b34fb");
+
+static BLEAdvertisedDevice* target = nullptr;
+static BLERemoteCharacteristic* pTemp = nullptr;
+static BLERemoteCharacteristic* pLed = nullptr;
+static bool connected = false;
+
+class AdvCB : public BLEAdvertisedDeviceCallbacks {
+    void onResult(BLEAdvertisedDevice dev) {
+      if (dev.haveName() && dev.getName() == "ESP32_SERVER") {
+        Serial.println("");
+        Serial.println("==========================================");
+        Serial.println("     TÌM THẤY ESP32_SERVER !");
+        Serial.println("==========================================");
+        BLEDevice::getScan()->stop();
+        target = new BLEAdvertisedDevice(dev);
+      }
+    }
+};
+
+void notifyCB(BLERemoteCharacteristic* pChar, uint8_t* data, size_t len, bool isNotify) {
+  if (len > 0) {
+    float nhietdo = data[0];
+    Serial.println("");
+    Serial.println("╔══════════════════════════════════════╗");
+    Serial.printf(  "║     NHẬT ĐỘ TỪ SERVER:  %.1f °C      ║\n", nhietdo);
+    Serial.println("╚══════════════════════════════════════╝");
+    Serial.println("");
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial);
+  delay(2000);
+
+  Serial.println("\n\n=== PART 3 - ESP32 BLE CENTRAL (Client) ===");
+  Serial.println("Đang quét tìm ESP32_SERVER (Peripheral)...\n");
+
+  BLEDevice::init("");
+
+  BLEScan* pScan = BLEDevice::getScan();
+  pScan->setAdvertisedDeviceCallbacks(new AdvCB());
+  pScan->setActiveScan(true);
+  pScan->setInterval(100);
+  pScan->setWindow(99);
+  pScan->start(0);
+}
+
+void loop() {
+  if (target && !connected) {
+    Serial.println("Đang kết nối đến ESP32_SERVER...");
+    BLEClient* pClient = BLEDevice::createClient();
+    
+    if (pClient->connect(target)) {
+      BLERemoteService* pService = pClient->getService(serviceUUID);
+      if (pService) {
+        pTemp = pService->getCharacteristic(tempUUID);
+        pLed  = pService->getCharacteristic(ledUUID);
+        if (pTemp && pTemp->canNotify()) {
+          pTemp->registerForNotify(notifyCB);
+          Serial.println("┌──────────────────────────────────────────┐");
+          Serial.println("│  ĐÃ KẾT NỐI THÀNH CÔNG + BẬT NOTIFY OK!  │");
+          Serial.println("└──────────────────────────────────────────┘\n");
+          connected = true;
+        } else {
+          Serial.println("Lỗi: Không tìm thấy characteristic nhiệt độ");
+        }
+      } else {
+        Serial.println("Lỗi: Không tìm thấy Service 180F");
+      }
+    } else {
+      Serial.println("Kết nối thất bại!");
+    }
+    
+    target = nullptr;
+  }
+
+  if (connected && Serial.available()) {
+    char c = Serial.read();
+    if (c == '1' || c == '0') {
+      if (pLed && pLed->canWrite()) {
+        pLed->writeValue(&c, 1);
+        Serial.printf("→ Đã gửi lệnh: LED %s\n\n", c=='1'?"BẬT":"TẮT");
+      }
+    }
+  }
+
+  delay(100);
+}
